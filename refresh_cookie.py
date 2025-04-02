@@ -33,32 +33,7 @@ class CookieManager:
         self.refresh_lock = threading.Lock()
         self.refresh_thread = None
         self.stop_event = threading.Event()
-        
-        # 尝试从文件加载Cookie
-        self._load_cookie_from_file()
-        
-        # 如果文件加载失败，尝试从环境变量加载
-        if not self.cookies:
-            self._load_cookie_from_env()
-        
-    def _load_cookie_from_file(self):
-        """从文件加载Cookie"""
-        try:
-            if os.path.exists(COOKIE_FILE):
-                with open(COOKIE_FILE, "r") as f:
-                    cookie_data = json.load(f)
-                    if "cookies" in cookie_data and "cookies_str" in cookie_data:
-                        self.cookies = cookie_data["cookies"]
-                        self.cookies_str = cookie_data["cookies_str"]
-                        self.device_id = cookie_data.get("device_id")
-                        self.last_refresh_time = cookie_data.get("last_refresh_time", 
-                                                               datetime.now().timestamp())
-                        logger.info("成功从文件加载Cookie")
-                        return True
-        except Exception as e:
-            logger.error(f"加载Cookie文件失败: {e}")
-        
-        return False
+        self._load_cookie_from_env()
     
     def _load_cookie_from_env(self):
         """从环境变量加载Cookie"""

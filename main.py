@@ -262,20 +262,21 @@ class XianyuLive:
                 
             # 获取商品信息并检查itemDO是否存在
             item_info_response = self.xianyu.get_item_info(self.cookies, item_id)
-            if 'data' not in item_info_response or 'itemDO' not in item_info_response['data']:
+            
+            # 使用get方法安全地获取嵌套数据
+            item_info = item_info_response.get('data', {}).get('itemDO', {})
+            if not item_info:
                 logger.error(f"获取商品信息失败，itemDO不存在: {json.dumps(item_info_response, ensure_ascii=False)}")
                 return
-                
-            item_info = item_info_response['data']['itemDO']
             
             # 判断是否为买家消息（当前用户是买家）
-            seller_id = str(item_info.get('userId', ''))
+            # 使用get方法安全地获取嵌套数据，提供默认值防止KeyError
+            seller_id = item_info.get('trackParams', {}).get('sellerId', '')
             if seller_id != self.myid:
                 logger.debug(f"过滤掉我作为买家的消息")
                 return
-                
-            item_description = f"{item_info['desc']};当前商品售卖价格为:{str(item_info['soldPrice'])}"
             
+            item_description = f"{item_info.get('desc', '')};当前商品售卖价格为:{str(item_info.get('soldPrice', ''))}"
             logger.info(f"user: {send_user_name}, 发送消息: {send_message}")
             
             # 添加用户消息到上下文
