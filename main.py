@@ -277,9 +277,8 @@ class XianyuLive:
             if seller_id != self.myid:
                 logger.debug(f"过滤掉我作为买家的消息")
                 return
-                
-            item_description = f"{item_info['desc']};当前商品售卖价格为:{str(item_info['soldPrice'])}"
             
+            item_description = f"{item_info.get('desc', '')};当前商品售卖价格为:{str(item_info.get('soldPrice', ''))}"
             logger.info(f"user: {send_user_name}, 发送消息: {send_message}")
             
             # 添加用户消息到上下文
