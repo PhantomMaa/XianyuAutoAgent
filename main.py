@@ -254,7 +254,13 @@ class XianyuLive:
                 logger.warning("无法获取商品ID")
                 return
                 
-            item_info = self.xianyu.get_item_info(self.cookies, item_id)['data']['itemDO']
+            # 获取商品信息并检查itemDO是否存在
+            item_info_response = self.xianyu.get_item_info(self.cookies, item_id)
+            if 'data' not in item_info_response or 'itemDO' not in item_info_response['data']:
+                logger.error(f"获取商品信息失败，itemDO不存在: {json.dumps(item_info_response, ensure_ascii=False)}")
+                return
+                
+            item_info = item_info_response['data']['itemDO']
             
             # 判断是否为买家消息（当前用户是买家）
             seller_id = str(item_info.get('userId', ''))
