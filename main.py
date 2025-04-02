@@ -12,7 +12,7 @@ from XianyuApis import XianyuApis
 from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt
 from XianyuAgent import XianyuReplyBot
 from context_manager import ChatContextManager
-
+from refresh_cookie import CookieManager
 
 class XianyuLive:
     def __init__(self, cookies_str):
@@ -23,6 +23,11 @@ class XianyuLive:
         self.myid = self.cookies['unb']
         self.device_id = generate_device_id(self.myid)
         self.context_manager = ChatContextManager()
+        
+        # 初始化Cookie管理器
+        self.cookie_manager = CookieManager(self.xianyu)
+        self.cookie_manager.set_cookies(self.cookies, self.cookies_str, self.device_id)
+        self.cookie_manager.start_auto_refresh()
         
         # 心跳相关配置
         self.heartbeat_interval = 15  # 心跳间隔15秒
@@ -173,6 +178,7 @@ class XianyuLive:
                     ack["headers"]["dt"] = message["headers"]["dt"]
                 await websocket.send(json.dumps(ack))
             except Exception as e:
+                logger.error(f"发送确认消息失败: {e}")
                 pass
 
             # 如果不是同步包消息，直接返回
@@ -262,7 +268,10 @@ class XianyuLive:
             if not item_info:
                 logger.error(f"获取商品信息失败，itemDO不存在: {json.dumps(item_info_response, ensure_ascii=False)}")
                 return
-            
+            if 'data' not in item_info_response or 'itemDO' not in item_info_response['data']:
+                logger.error(f"获取商品信息失败，itemDO不存在: {json.dumps(item_info_response, ensure_ascii=False)}")
+                return
+                
             # 判断是否为买家消息（当前用户是买家）
             seller_id = item_info.get('trackParams', {}).get('sellerId', '')
             if seller_id != self.myid:
@@ -361,6 +370,9 @@ class XianyuLive:
     async def main(self):
         while True:
             try:
+                # 获取最新的cookie
+                self.cookies, self.cookies_str, self.device_id = self.cookie_manager.get_cookies()
+                
                 headers = {
                     "Cookie": self.cookies_str,
                     "Host": "wss-goofish.dingtalk.com",
@@ -375,6 +387,9 @@ class XianyuLive:
 
                 async with websockets.connect(self.base_url, extra_headers=headers) as websocket:
                     self.ws = websocket
+                    logger.info('WebSocket连接成功')
+                    
+                    # 初始化连接
                     await self.init(websocket)
                     
                     # 初始化心跳时间
