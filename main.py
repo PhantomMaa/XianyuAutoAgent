@@ -458,4 +458,9 @@ if __name__ == '__main__':
     bot = XianyuReplyBot()
     xianyuLive = XianyuLive(cookies_str)
     # 常驻进程
-    asyncio.run(xianyuLive.main())
+    try:
+        asyncio.run(xianyuLive.main())
+    except KeyboardInterrupt:
+        print("程序被用户中断")
+    except Exception as e:
+        print(f"程序运行出错: {str(e)}") 

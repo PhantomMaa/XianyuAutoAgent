@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 创建虚拟环境
-python -m venv .venv
+python3.12 -m venv .venv
 
 # 激活虚拟环境
 source .venv/bin/activate

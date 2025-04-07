@@ -3,13 +3,14 @@ import json
 import time
 import os
 import threading
-from datetime import datetime    
+from datetime import datetime
 from loguru import logger
+from playwright.sync_api import sync_playwright
 
 # 存储 Cookie 的文件
 COOKIE_FILE = "cookie.json"
 # 刷新Cookie的URL
-REFRESH_COOKIE_URL = "https://www.goofish.com/"
+REFRESH_COOKIE_URL = "https://www.goofish.com/im"
 # Cookie检查间隔（秒）
 CHECK_INTERVAL = 60 * 10  # 每10分钟检查一次
 # Cookie有效期阈值（秒）
@@ -110,8 +111,7 @@ class CookieManager:
             
         try:
             # 尝试获取token，如果失败则说明Cookie已过期
-            token_response = self.xianyu_api.get_token(self.cookies, self.device_id)
-            
+            token_response = self.xianyu_api.get_token(self.cookies, self.device_id)   
             if token_response.get('ret') and token_response['ret'][0].startswith("SUCCESS"):
                 # 检查Cookie使用时间是否接近过期
                 current_time = datetime.now().timestamp()
@@ -126,87 +126,83 @@ class CookieManager:
             logger.error(f"检查Cookie时出错: {e}")
             return False
     
-    def refresh_cookie_with_requests(self):
-        """使用requests刷新Cookie"""
-        with self.refresh_lock:
-            logger.info("开始使用requests刷新Cookie...")
-            
-            try:
-                # 加载现有可用的Cookie
-                if not self.cookies:
-                    if not self._load_cookie_from_file() and not self._load_cookie_from_env():
-                        logger.error("无法加载Cookie: 当前没有可用的Cookie")
-                        return False
-                
-                # 准备请求头
-                headers = {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-                    "Connection": "keep-alive",
-                    "Upgrade-Insecure-Requests": "1",
-                    "Cookie": self.cookies_str
-                }
-                
-                # 发送请求到闲鱼首页
-                response = requests.get(REFRESH_COOKIE_URL, headers=headers, allow_redirects=True)
-                
-                # 获取响应中的所有Cookie
-                cookies_dict = {}
-                cookies_str_parts = []
-                
-                # 处理响应中的Set-Cookie头
-                if 'Set-Cookie' in response.headers:
-                    # 可能有多个Set-Cookie头
-                    if isinstance(response.headers['Set-Cookie'], list):
-                        for cookie_str in response.headers['Set-Cookie']:
-                            cookie_name = cookie_str.split('=')[0].strip()
-                            cookie_value = cookie_str.split('=')[1].split(';')[0].strip()
-                            cookies_dict[cookie_name] = cookie_value
-                            cookies_str_parts.append(f"{cookie_name}={cookie_value}")
-                    else:
-                        cookie_str = response.headers['Set-Cookie']
-                        cookie_name = cookie_str.split('=')[0].strip()
-                        cookie_value = cookie_str.split('=')[1].split(';')[0].strip()
-                        cookies_dict[cookie_name] = cookie_value
-                        cookies_str_parts.append(f"{cookie_name}={cookie_value}")
-                else:
-                    logger.error("无法获取到Set-Cookie头，刷新Cookie失败")
-                    return False
-                
-                # 合并原有Cookie和新Cookie
-                for name, value in self.cookies.items():
-                    if name not in cookies_dict:
-                        cookies_dict[name] = value
-                        cookies_str_parts.append(f"{name}={value}")
-                
-                cookies_str = "; ".join(cookies_str_parts)
-                
-                # 更新Cookie
-                self.cookies = cookies_dict
-                self.cookies_str = cookies_str
-                self.last_refresh_time = datetime.now().timestamp()
-                
-                # 保存Cookie
-                self._save_cookie_to_file()
-                
-                logger.info("成功刷新Cookie")
-                return True
-                
-            except Exception as e:
-                logger.error(f"使用requests刷新Cookie失败: {e}")
-                return False
-    
     def refresh_cookie(self):
         """
-        刷新Cookie，直接使用requests方法
+        刷新Cookie，使用 chromium 浏览器模拟登录
         
         Returns:
             bool: 刷新是否成功
         """
-        # 直接使用requests刷新
-        return self.refresh_cookie_with_requests()
-    
+        logger.info("开始刷新Cookie...")
+        
+        with self.refresh_lock:
+            try:
+                with sync_playwright() as p:
+                    # 启动浏览器
+                    browser = p.chromium.launch(headless=True)
+                    context = browser.new_context()
+                    page = context.new_page()
+                    
+                    # 如果已有cookie，先设置它们
+                    if self.cookies:
+                        logger.info("设置现有cookie")
+                        # 设置现有cookies
+                        for name, value in self.cookies.items():
+                            if isinstance(value, str):  # 只添加字符串类型的cookie
+                                context.add_cookies([{
+                                    "name": name,
+                                    "value": value,
+                                    "domain": ".goofish.com",
+                                    "path": "/"
+                                }])
+                    
+                    logger.info("访问闲鱼页面")
+                    page.goto(REFRESH_COOKIE_URL)
+                    page.wait_for_load_state("networkidle")
+                    
+                    # 检查是否已登录
+                    is_logged_in = False
+                    try:
+                        # 等待5秒看是否有登录成功的标识
+                        cookies = context.cookies()
+                        if any(cookie["name"] == "havana_lgc2_77" for cookie in cookies):
+                            logger.info("通过已保存状态成功恢复登录")
+                            is_logged_in = True
+                    except Exception:
+                        is_logged_in = False
+                    
+                    if not is_logged_in:
+                        logger.warning("未检测到登录状态，可能需要手动登录")
+                        return False
+                    
+                    # 提取所有cookies
+                    all_cookies = context.cookies()
+                    
+                    # 转换为字典格式
+                    cookies_dict = {cookie["name"]: cookie["value"] for cookie in all_cookies}
+                    
+                    # 转换为字符串格式
+                    cookies_str = "; ".join([f"{name}={value}" for name, value in cookies_dict.items()])
+                    
+                    # 更新cookie
+                    self.cookies = cookies_dict
+                    self.cookies_str = cookies_str
+                    
+                    # 更新刷新时间
+                    self.last_refresh_time = datetime.now().timestamp()
+                    
+                    # 保存到文件
+                    self._save_cookie_to_file()
+                    
+                    # 关闭浏览器
+                    browser.close()
+                    
+                    logger.info("Cookie刷新成功")
+                    return True
+            except Exception as e:
+                logger.error(f"刷新Cookie失败: {e}")
+                return False
+
     def start_auto_refresh(self):
         """启动自动刷新线程"""
         if self.refresh_thread and self.refresh_thread.is_alive():
@@ -242,7 +238,6 @@ class CookieManager:
                     if self.stop_event.is_set():
                         break
                     time.sleep(1)
-                    
             except Exception as e:
                 logger.error(f"自动刷新过程中出错: {e}")
                 # 出错后等待一段时间再重试
