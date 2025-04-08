@@ -3,16 +3,24 @@ import json
 import asyncio
 import time
 import os
+import sys
 import websockets
 from loguru import logger
 from dotenv import load_dotenv
 from XianyuApis import XianyuApis
 
-
 from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt
 from XianyuAgent import XianyuReplyBot
 from context_manager import ChatContextManager
 from refresh_cookie import CookieManager
+
+
+# 配置日志
+logger.remove()  # 移除默认的日志处理器
+# 添加标准输出处理器（用于kubectl logs）
+logger.add(sys.stdout, level="DEBUG", format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>")
+# 添加文件处理器
+logger.add("run.log", rotation="10 MB", retention="1 week", level="INFO", format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}")
 
 class XianyuLive:
     def __init__(self, cookies_str):

@@ -138,9 +138,53 @@ class CookieManager:
         with self.refresh_lock:
             try:
                 with sync_playwright() as p:
-                    # 启动浏览器
-                    browser = p.chromium.launch(headless=False)
-                    context = browser.new_context()
+                    # 启动浏览器，设置无头模式但添加额外参数以避免被检测
+                    browser = p.chromium.launch(
+                        headless=True,
+                        args=[
+                            '--disable-blink-features=AutomationControlled',
+                            '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+                            '--window-size=1920,1080',
+                        ]
+                    )
+                    
+                    # 创建上下文时添加额外的设置
+                    context = browser.new_context(
+                        viewport={'width': 1920, 'height': 1080},
+                        user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+                        # 添加额外的浏览器特性以模拟真实浏览器
+                        java_script_enabled=True,
+                        locale='zh-CN',
+                        timezone_id='Asia/Shanghai',
+                        # 绕过webdriver检测
+                        bypass_csp=True
+                    )
+                    
+                    # 添加脚本以绕过自动化检测
+                    context.add_init_script("""
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => false,
+                    });
+                    // 覆盖 Chrome 自动化控制相关属性
+                    window.navigator.chrome = {
+                        runtime: {},
+                    };
+                    // 覆盖 permissions 相关属性
+                    const originalQuery = window.navigator.permissions.query;
+                    window.navigator.permissions.query = (parameters) => (
+                        parameters.name === 'notifications' ?
+                            Promise.resolve({ state: Notification.permission }) :
+                            originalQuery(parameters)
+                    );
+                    // 覆盖 plugins 属性
+                    Object.defineProperty(navigator, 'plugins', {
+                        get: () => [1, 2, 3, 4, 5],
+                    });
+                    // 覆盖 languages 属性
+                    Object.defineProperty(navigator, 'languages', {
+                        get: () => ['zh-CN', 'zh', 'en'],
+                    });
+                    """)
                     
                     # 如果已有cookie，先设置它们
                     if self.cookies:
@@ -183,7 +227,8 @@ class CookieManager:
                     
                     # 转换为字符串格式
                     cookies_str = "; ".join([f"{name}={value}" for name, value in cookies_dict.items()])
-
+                    # logger.info(f"获取到的cookies_str: {cookies_str}")
+                    
                     # 更新cookie
                     self.cookies = cookies_dict
                     self.cookies_str = cookies_str
