@@ -19,8 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements file
 COPY requirements.txt .
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt && \
+# 安装 uv 并使用它来安装依赖
+RUN pip install --no-cache-dir uv && \
+    uv pip install --system -r requirements.txt && \
     python -m playwright install chromium --with-deps
 
 # Copy application code
