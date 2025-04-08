@@ -8,7 +8,7 @@ ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Install NodeJS 18
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gnupg \
     && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
