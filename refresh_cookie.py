@@ -145,7 +145,6 @@ class CookieManager:
                             '--disable-blink-features=AutomationControlled',
                             '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
                             '--window-size=1920,1080',
-                            '--disable-gpu',
                         ]
                     )
                     
@@ -222,6 +221,8 @@ class CookieManager:
                     
                     # 提取所有cookies
                     all_cookies = context.cookies()
+                    # 记录所有获取到的cookies，便于调试
+                    logger.debug(f"获取到的cookies数量: {len(all_cookies)}")
                     
                     # 转换为字典格式
                     cookies_dict = {cookie["name"]: cookie["value"] for cookie in all_cookies}
