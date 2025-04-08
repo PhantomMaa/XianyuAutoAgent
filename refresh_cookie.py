@@ -139,13 +139,12 @@ class CookieManager:
             try:
                 with sync_playwright() as p:
                     # 启动浏览器
-                    browser = p.chromium.launch(headless=True)
+                    browser = p.chromium.launch(headless=False)
                     context = browser.new_context()
-                    page = context.new_page()
                     
                     # 如果已有cookie，先设置它们
                     if self.cookies:
-                        logger.info("设置现有cookie")
+                        logger.info("为playwright设置现有cookie")
                         # 设置现有cookies
                         for name, value in self.cookies.items():
                             if isinstance(value, str):  # 只添加字符串类型的cookie
@@ -157,6 +156,7 @@ class CookieManager:
                                 }])
                     
                     logger.info("访问闲鱼页面")
+                    page = context.new_page()
                     page.goto(REFRESH_COOKIE_URL)
                     page.wait_for_load_state("networkidle")
                     
@@ -168,8 +168,8 @@ class CookieManager:
                         if any(cookie["name"] == "havana_lgc2_77" for cookie in cookies):
                             logger.info("通过已保存状态成功恢复登录")
                             is_logged_in = True
-                    except Exception:
-                        is_logged_in = False
+                    except Exception as e:
+                        logger.error(f"检查登录状态时出错: {e}")
                     
                     if not is_logged_in:
                         logger.warning("未检测到登录状态，可能需要手动登录")
@@ -183,7 +183,7 @@ class CookieManager:
                     
                     # 转换为字符串格式
                     cookies_str = "; ".join([f"{name}={value}" for name, value in cookies_dict.items()])
-                    
+
                     # 更新cookie
                     self.cookies = cookies_dict
                     self.cookies_str = cookies_str
