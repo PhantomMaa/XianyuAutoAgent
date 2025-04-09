@@ -168,7 +168,9 @@ class XianyuLive:
     async def handle_message(self, message_data, websocket):
         """处理所有类型的消息"""
         try:
-
+            # 获取最新的cookie
+            self.cookies, self.cookies_str, self.device_id = self.cookie_manager.get_cookies()
+            
             try:
                 message = message_data
                 ack = {
